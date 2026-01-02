@@ -1,10 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Blank Space Detection</title>
+    <meta charset="UTF-8">
+    <title>Smart Shelf Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
-    <h1>Blank Space Detection on Shop Shelves</h1>
-    <img src="/video" width="720" style="border:2px solid black;">
+
+<header>
+    <h1>Smart Shelf Assistant</h1>
+    <p>Audio-enabled Blank Shelf Detection for Visually Impaired</p>
+</header>
+
+<main>
+
+    <section class="video-card">
+        <img src="/video" alt="Live shelf camera feed">
+    </section>
+
+    <section class="status-card" aria-live="polite">
+        <h2 id="statusText">Detecting...</h2>
+        <p id="directionText"></p>
+    </section>
+
+    <button onclick="toggleAudio()" id="audioBtn">
+        🔊 Audio: ON
+    </button>
+
+</main>
+
+<footer>
+    Assistive AI | Retail Shelf Monitoring
+</footer>
+
+<script>
+let audioEnabled = true;
+
+function toggleAudio(){
+    audioEnabled = !audioEnabled;
+    document.getElementById("audioBtn").innerText =
+        audioEnabled ? "🔊 Audio: ON" : "🔇 Audio: OFF";
+}
+
+function speak(text){
+    if(!audioEnabled) return;
+    let msg = new SpeechSynthesisUtterance(text);
+    msg.lang = "en-IN";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(msg);
+}
+
+function fetchStatus(){
+    fetch("/status")
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("statusText").innerText =
+                "Status: " + data.status.toUpperCase();
+
+            document.getElementById("directionText").innerText =
+                data.direction ? "Location: " + data.direction.toUpperCase() : "";
+
+            speak(data.message);
+        });
+}
+
+setInterval(fetchStatus, 3000);
+</script>
+
 </body>
 </html>

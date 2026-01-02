@@ -1,60 +1,75 @@
 # app.py
-from flask import Flask, render_template, Response
+
+from flask import Flask, render_template, Response, jsonify
 import cv2
+import time
+import pyttsx3
 from detect import detect_blank_space
 
 app = Flask(__name__)
 
+# ---------- Text to Speech ----------
+engine = pyttsx3.init()
+engine.setProperty("rate", 150)
+
+last_spoken = None
+latest_status = {
+    "status": "detecting",
+    "direction": "",
+    "message": "Detection started"
+}
+
+def speak(message):
+    global last_spoken
+    if message and message != last_spoken:
+        engine.say(message)
+        engine.runAndWait()
+        last_spoken = message
+
+# ---------- Camera Stream ----------
 def generate_frames():
-    import time
-    import cv2
+    global latest_status
 
-    camera = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
+    camera = cv2.VideoCapture(0)
     time.sleep(1)
-
-    if not camera.isOpened():
-        print("CAMERA NOT OPENED")
-        return
-
-    print("CAMERA OPENED")
 
     while True:
         success, frame = camera.read()
         if not success:
-            print("FRAME READ FAILED")
             break
 
-        frame = detect_blank_space(frame)
+        frame, status_data = detect_blank_space(frame)
 
-        ret, buffer = cv2.imencode('.jpg', frame)
-        if not ret:
-            print("JPEG ENCODE FAILED")
-            continue
+        # update status for frontend
+        latest_status = status_data
+
+        # speak for visually impaired
+        speak(status_data["message"])
+
+        ret, buffer = cv2.imencode(".jpg", frame)
+        frame_bytes = buffer.tobytes()
 
         yield (
             b"--frame\r\n"
             b"Content-Type: image/jpeg\r\n\r\n" +
-            buffer.tobytes() +
+            frame_bytes +
             b"\r\n"
         )
 
-@app.route('/')
+# ---------- Routes ----------
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/video')
+@app.route("/video")
 def video():
-    return Response(
-        generate_frames(),
-        mimetype='multipart/x-mixed-replace; boundary=frame'
-    )
+    return Response(generate_frames(),
+                    mimetype="multipart/x-mixed-replace; boundary=frame")
 
+@app.route("/status")
+def status():
+    return jsonify(latest_status)
+
+# ---------- Run ----------
 if __name__ == "__main__":
-    app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True,
-        threaded=True,
-        use_reloader=False
-    )
-
+    app.run(debug=True, use_reloader=False)
